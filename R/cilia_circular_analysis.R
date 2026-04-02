@@ -13,6 +13,13 @@
 #    - figures/rose_plots_combined.pdf
 # ============================================================
 
+# ------------------------------------------------------------
+# SET THIS FLAG:
+#   TRUE  = regenerate plots only (fast, no statistics)
+#   FALSE = run full analysis with permutation tests (slow)
+# ------------------------------------------------------------
+PLOT_ONLY <- FALSE
+
 library(circular)
 library(ggplot2)
 library(gridExtra)
@@ -149,83 +156,96 @@ run_analysis <- function(angles, dataset_label, n_perm = 9999) {
 # 2. ggplot rose plot for a single group
 # ------------------------------------------------------------
 
-# col_fill and col_border: hex colour strings
-# title:    plot title
-# subtitle: shown below title (use for U2 / p-value annotation)
-make_gg_rose <- function(angles_vec, title = "", subtitle = "",
+make_gg_rose <- function(angles_vec, title = "", subtitle = "", caption = "",
                           col_fill = "#ddddff", col_border = "blue") {
 
-  # Build histogram on 0-360 in 10-degree bins (matches your original code)
-  breaks <- seq(-180, 180, by = 20)
+  # Histogram on 0-360 in 20-degree bins
+  breaks <- seq(0, 360, by = 20)
   raw    <- as.numeric(angles_vec)
-  raw    <- ifelse(raw > 180, raw - 360, raw)
   h      <- hist(raw, breaks = breaks, plot = FALSE)
 
   d <- data.frame(Angle     = h$mids,
                   Frequency = as.numeric(h$counts))
 
+  # Mean direction arrow — length scaled by rho relative to tallest bar
+  circ_vec  <- circular(raw, units = "degrees", modulo = "2pi")
+  mean_dir  <- as.numeric(mean(circ_vec))
+  rho_val   <- rho.circular(circ_vec)
+  arrow_len <- max(d$Frequency) * rho_val
+
   ggplot(d, aes(x = Angle, y = Frequency)) +
     ggtitle(label = title, subtitle = subtitle) +
+    labs(caption = caption) +
     coord_polar(theta = "x", start = pi / 2) +
-    geom_bar(stat     = "identity",
-             fill     = col_fill,
-             color    = col_border,
+    geom_bar(stat      = "identity",
+             fill      = col_fill,
+             color     = col_border,
              linewidth = 0.25) +
-    scale_x_continuous(breaks = c(-180, -135, -90, -45, 0, 45, 90, 135),
+    geom_segment(aes(x = mean_dir, xend = mean_dir,
+                     y = 0,        yend = arrow_len),
+                 color       = col_border,
+                 linewidth   = 1,
+                 arrow       = arrow(length = unit(0.2, "cm"), type = "closed"),
+                 inherit.aes = FALSE) +
+    scale_x_continuous(breaks = c(0, 45, 90, 135, 180, 225, 270, 315),
                        expand = c(0.002, 0),
-                       limits = c(-180, 180)) +
+                       limits = c(0, 360)) +
     theme_minimal(base_size = 10) +
     theme(
-      plot.title         = element_text(size = 10, face = "bold", hjust = 0.5),
-      plot.subtitle      = element_text(size = 8,  hjust = 0.5, color = "grey40"),
-      axis.title         = element_blank(),
-      axis.text.y        = element_blank(),
-      axis.text.x        = element_text(size = 7, color = "grey40"),
-      panel.grid.major   = element_line(color = "grey90", linewidth = 0.3),
-      panel.grid.minor   = element_blank(),
-      plot.margin        = margin(4, 4, 4, 4)
+      plot.title       = element_text(size = 10, face = "bold", hjust = 0.5),
+      plot.subtitle    = element_text(size = 8,  hjust = 0.5, color = "grey40"),
+      axis.title       = element_blank(),
+      axis.text.y      = element_blank(),
+      axis.text.x      = element_text(size = 7, color = "grey40"),
+      panel.grid.major = element_line(color = "grey90", linewidth = 0.3),
+      panel.grid.minor = element_blank(),
+      plot.margin      = margin(4, 4, 4, 4),
+      plot.caption     = element_text(size = 7, hjust = 0.5, color = "grey40")
     )
 }
 
-# Build a full 2 x 4 page (Control row + ES row) and save to PDF
+# Build a 2 x 4 page (Control row + ES row) and save to PDF
 make_rose_plots <- function(angles, perm_results, dataset_label, outfile) {
   timepoints <- c("T0", "T4", "T8", "T12")
+  plot_list  <- list()
 
-  plot_list <- list()
-
-  # Control row — no p-value annotation (reference group)
+  # Control row
   for (tp in timepoints) {
-    rho_val <- round(rho.circular(angles[["Control"]][[tp]]), 3)
-    p <- make_gg_rose(
-      angles[["Control"]][[tp]],
-      title    = paste("Control —", tp),
-      subtitle = paste0("\u03c1 = ", rho_val),   # rho symbol
-      col_fill   = "#ddeeff",
-      col_border = "steelblue"
-    )
-    plot_list <- c(plot_list, list(p))
+    n_cilia   <- length(angles[["Control"]][[tp]])
+    rho_val   <- round(rho.circular(angles[["Control"]][[tp]]), 3)
+    rayleigh_p <- round(rayleigh.test(angles[["Control"]][[tp]])$p.value, 3)
+    plot_list <- c(plot_list, list(
+      make_gg_rose(angles[["Control"]][[tp]],
+                   title    = paste("Control -", tp),
+                   subtitle = paste0("n = ", n_cilia, ",  rho = ", rho_val,
+                                     ",  Rayleigh p = ", format.pval(rayleigh_p, digits = 2)),
+                   col_fill   = "#ddeeff",
+                   col_border = "steelblue")
+    ))
   }
 
-  # ES row — annotate with U2 and Bonferroni-corrected p-value
+  # ES row
   for (tp in timepoints) {
-    rho_val <- round(rho.circular(angles[["ES"]][[tp]]), 3)
-    pr      <- perm_results[perm_results$timepoint == tp, ]
-    sub     <- paste0("\u03c1 = ", rho_val,
-                      "  |  U\u00b2 = ", pr$U2,
-                      "  |  p\u1d2e\u2092\u2099\u2091 = ", format.pval(pr$p_bonferroni, digits = 2))
-    p <- make_gg_rose(
-      angles[["ES"]][[tp]],
-      title    = paste("ES —", tp),
-      subtitle = sub,
-      col_fill   = "#ffeeee",
-      col_border = "coral"
-    )
-    plot_list <- c(plot_list, list(p))
+    n_cilia    <- length(angles[["ES"]][[tp]])
+    rho_val    <- round(rho.circular(angles[["ES"]][[tp]]), 3)
+    rayleigh_p <- round(rayleigh.test(angles[["ES"]][[tp]])$p.value, 3)
+    pr         <- perm_results[perm_results$timepoint == tp, ]
+    sub <- paste0("n = ", n_cilia, ",  rho = ", rho_val,
+                  ",  Rayleigh p = ", format.pval(rayleigh_p, digits = 2))
+    cap <- if (!is.na(pr$U2)) paste0("Watson U2 p (Bonferroni) = ", format.pval(pr$p_bonferroni, digits = 2)) else ""
+    plot_list <- c(plot_list, list(
+      make_gg_rose(angles[["ES"]][[tp]],
+                   title    = paste("ES -", tp),
+                   subtitle = sub,
+                   caption  = cap,
+                   col_fill   = "#ffeeee",
+                   col_border = "coral")
+    ))
   }
 
   pdf(outfile, width = 14, height = 7)
   grid.arrange(grobs = plot_list, nrow = 2,
-               top = paste("Primary cilia orientation —", dataset_label))
+               top = paste("Primary cilia orientation -", dataset_label))
   dev.off()
   cat("Saved:", outfile, "\n")
 }
@@ -241,45 +261,67 @@ make_combined_plots <- function(all_angles, all_perm, all_labels, outfile) {
     label        <- all_labels[[i]]
 
     for (tp in timepoints) {
-      rho_val <- round(rho.circular(angles[["Control"]][[tp]]), 3)
-      p <- make_gg_rose(
-        angles[["Control"]][[tp]],
-        title    = paste("Control —", tp),
-        subtitle = paste0("\u03c1 = ", rho_val, "  [", label, "]"),
-        col_fill   = "#ddeeff",
-        col_border = "steelblue"
-      )
-      all_plots <- c(all_plots, list(p))
+      n_cilia    <- length(angles[["Control"]][[tp]])
+      rho_val    <- round(rho.circular(angles[["Control"]][[tp]]), 3)
+      rayleigh_p <- round(rayleigh.test(angles[["Control"]][[tp]])$p.value, 3)
+      all_plots <- c(all_plots, list(
+        make_gg_rose(angles[["Control"]][[tp]],
+                     title    = paste0("Control - ", tp, " [", label, "]"),
+                     subtitle = paste0("n = ", n_cilia, ",  rho = ", rho_val,
+                                       ",  Rayleigh p = ", format.pval(rayleigh_p, digits = 2)),
+                     col_fill   = "#ddeeff",
+                     col_border = "steelblue")
+      ))
     }
 
     for (tp in timepoints) {
-      rho_val <- round(rho.circular(angles[["ES"]][[tp]]), 3)
-      pr      <- perm_results[perm_results$timepoint == tp, ]
-      sub     <- paste0("\u03c1 = ", rho_val,
-                        "  |  U\u00b2 = ", pr$U2,
-                        "  |  p\u1d2e\u2092\u2099\u2091 = ", format.pval(pr$p_bonferroni, digits = 2),
-                        "  [", label, "]")
-      p <- make_gg_rose(
-        angles[["ES"]][[tp]],
-        title    = paste("ES —", tp),
-        subtitle = sub,
-        col_fill   = "#ffeeee",
-        col_border = "coral"
-      )
-      all_plots <- c(all_plots, list(p))
+      n_cilia    <- length(angles[["ES"]][[tp]])
+      rho_val    <- round(rho.circular(angles[["ES"]][[tp]]), 3)
+      rayleigh_p <- round(rayleigh.test(angles[["ES"]][[tp]])$p.value, 3)
+      pr         <- perm_results[perm_results$timepoint == tp, ]
+      sub <- paste0("n = ", n_cilia, ",  rho = ", rho_val,
+                    ",  Rayleigh p = ", format.pval(rayleigh_p, digits = 2))
+      cap <- if (!is.na(pr$U2)) paste0("Watson U2 p (Bonferroni) = ", format.pval(pr$p_bonferroni, digits = 2)) else ""
+      all_plots <- c(all_plots, list(
+        make_gg_rose(angles[["ES"]][[tp]],
+                     title    = paste0("ES - ", tp, " [", label, "]"),
+                     subtitle = sub,
+                     caption  = cap,
+                     col_fill   = "#ffeeee",
+                     col_border = "coral")
+      ))
     }
   }
 
   n_rows <- length(all_angles) * 2
   pdf(outfile, width = 14, height = 3.5 * length(all_angles))
   grid.arrange(grobs = all_plots, nrow = n_rows,
-               top = "Primary cilia orientation — Control vs electrical stimulation")
+               top = "Primary cilia orientation - Control vs electrical stimulation")
   dev.off()
   cat("Saved:", outfile, "\n")
 }
 
 # ------------------------------------------------------------
-# 3. Load datasets
+# 3. Plot-only function — skips permutations, just redraws PDFs
+#    Use after sourcing the script to tweak plots without waiting
+# ------------------------------------------------------------
+
+plot_only <- function() {
+  dir.create("figures", showWarnings = FALSE)
+  dummy_perm <- data.frame(
+    timepoint    = c("T0", "T4", "T8", "T12"),
+    U2           = NA, p_value      = NA,
+    p_bonferroni = NA, p_fdr        = NA
+  )
+  for (i in seq_along(datasets)) {
+    ang <- load_dataset(datasets[[i]]$path)
+    make_rose_plots(ang, dummy_perm, datasets[[i]]$label, datasets[[i]]$file)
+  }
+  cat("Figures regenerated (no p-values shown — run full script for statistics).\n")
+}
+
+# ------------------------------------------------------------
+# 4. Define datasets
 # ------------------------------------------------------------
 
 datasets <- list(
@@ -298,27 +340,40 @@ datasets <- list(
 dir.create("figures", showWarnings = FALSE)
 
 # ------------------------------------------------------------
-# 4. Run analysis and generate plots for each dataset
+# 5. Run analysis and generate plots for each dataset
 # ------------------------------------------------------------
 
 all_angles <- list()
 all_perm   <- list()
 all_labels <- list()
 
+dummy_perm <- data.frame(
+  timepoint    = c("T0", "T4", "T8", "T12"),
+  U2           = NA, p_value      = NA,
+  p_bonferroni = NA, p_fdr        = NA
+)
+
 for (ds in datasets) {
-  angles  <- load_dataset(ds$path)
-  results <- run_analysis(angles, ds$label)
-  make_rose_plots(angles, results$perm_results, ds$label, ds$file)
+  angles <- load_dataset(ds$path)
   all_angles <- c(all_angles, list(angles))
-  all_perm   <- c(all_perm,   list(results$perm_results))
   all_labels <- c(all_labels, list(ds$label))
+
+  if (PLOT_ONLY) {
+    all_perm <- c(all_perm, list(dummy_perm))
+    make_rose_plots(angles, dummy_perm, ds$label, ds$file)
+  } else {
+    results <- run_analysis(angles, ds$label)
+    all_perm <- c(all_perm, list(results$perm_results))
+    make_rose_plots(angles, results$perm_results, ds$label, ds$file)
+  }
 }
 
 # ------------------------------------------------------------
-# 5. Combined figure
+# 6. Combined figure
 # ------------------------------------------------------------
 
 make_combined_plots(all_angles, all_perm, all_labels,
                     "figures/rose_plots_combined.pdf")
 
 cat("\nAll done. Figures written to figures/\n")
+if (PLOT_ONLY) cat("Note: PLOT_ONLY = TRUE, no statistics computed. Set to FALSE for full analysis.\n")
