@@ -247,7 +247,14 @@ make_rose_plots <- function(angles, perm_results, dataset_label, outfile) {
   grid.arrange(grobs = plot_list, nrow = 2,
                top = paste("Primary cilia orientation -", dataset_label))
   dev.off()
+
+  png_file <- sub("\.pdf$", ".png", outfile)
+  png(png_file, width = 14, height = 7, units = "in", res = 300, bg = "transparent")
+  grid.arrange(grobs = plot_list, nrow = 2,
+               top = paste("Primary cilia orientation -", dataset_label))
+  dev.off()
   cat("Saved:", outfile, "\n")
+  cat("Saved:", png_file, "\n")
 }
 
 # Combined PDF — one pair of rows per dataset
@@ -298,7 +305,14 @@ make_combined_plots <- function(all_angles, all_perm, all_labels, outfile) {
   grid.arrange(grobs = all_plots, nrow = n_rows,
                top = "Primary cilia orientation - Control vs electrical stimulation")
   dev.off()
+
+  png_file <- sub("\.pdf$", ".png", outfile)
+  png(png_file, width = 14, height = 3.5 * length(all_angles), units = "in", res = 300, bg = "transparent")
+  grid.arrange(grobs = all_plots, nrow = n_rows,
+               top = "Primary cilia orientation - Control vs electrical stimulation")
+  dev.off()
   cat("Saved:", outfile, "\n")
+  cat("Saved:", png_file, "\n")
 }
 
 # ------------------------------------------------------------
