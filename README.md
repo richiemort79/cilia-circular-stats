@@ -37,15 +37,15 @@ cilia-circular-stats/
 
 ## Requirements
 
-R (≥ 4.0) with the `circular` package. Install from the Linux terminal:
+R (≥ 4.0) with the following packages. Install from the Linux terminal:
 
 ```bash
 # Option 1 — system package manager
-sudo apt install r-cran-circular
+sudo apt install r-cran-circular r-cran-ggplot2 r-cran-gridextra
 
 # Option 2 — from CRAN
 sudo apt install r-base-dev gfortran
-Rscript -e "install.packages('circular', repos='https://cloud.r-project.org')"
+Rscript -e "install.packages(c('circular', 'ggplot2', 'gridExtra'), repos='https://cloud.r-project.org')"
 ```
 
 ## Usage
@@ -103,3 +103,4 @@ Control T=0 | Control T=4 | Control T=8 | Control T=12 | ES T=0 | ES T=4 | ES T=
 ## Statistical approach
 
 See [`docs/methods.md`](docs/methods.md) for full details.
+
