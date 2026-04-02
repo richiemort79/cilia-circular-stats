@@ -156,8 +156,9 @@ make_gg_rose <- function(angles_vec, title = "", subtitle = "",
                           col_fill = "#ddddff", col_border = "blue") {
 
   # Build histogram on 0-360 in 10-degree bins (matches your original code)
-  breaks <- seq(0, 360, by = 10)
+  breaks <- seq(-180, 180, by = 20)
   raw    <- as.numeric(angles_vec)
+  raw    <- ifelse(raw > 180, raw - 360, raw)
   h      <- hist(raw, breaks = breaks, plot = FALSE)
 
   d <- data.frame(Angle     = h$mids,
@@ -165,14 +166,14 @@ make_gg_rose <- function(angles_vec, title = "", subtitle = "",
 
   ggplot(d, aes(x = Angle, y = Frequency)) +
     ggtitle(label = title, subtitle = subtitle) +
-    coord_polar(theta = "x", start = -pi / 2) +
+    coord_polar(theta = "x", start = pi / 2) +
     geom_bar(stat     = "identity",
              fill     = col_fill,
              color    = col_border,
              linewidth = 0.25) +
-    scale_x_continuous(breaks = c(0, 45, 90, 135, 180, 225, 270, 315),
+    scale_x_continuous(breaks = c(-180, -135, -90, -45, 0, 45, 90, 135),
                        expand = c(0.002, 0),
-                       limits = c(0, 360)) +
+                       limits = c(-180, 180)) +
     theme_minimal(base_size = 10) +
     theme(
       plot.title         = element_text(size = 10, face = "bold", hjust = 0.5),
