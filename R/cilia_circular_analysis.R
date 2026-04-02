@@ -34,6 +34,16 @@ to_circ <- function(x) {
   circular(x_360, units = "degrees", modulo = "2pi")
 }
 
+# Format p-value as threshold (e.g. p < 0.001)
+fmt_p <- function(p) {
+  if (is.na(p))        return("NA")
+  if (p < 0.0001)      return("p < 0.0001")
+  else if (p < 0.001)  return("p < 0.001")
+  else if (p < 0.01)   return("p < 0.01")
+  else if (p < 0.05)   return("p < 0.05")
+  else                 return("p > 0.05")
+}
+
 # Permutation-based Watson U2 test.
 # Shuffles group labels n_perm times to build a null distribution,
 # then computes an exact p-value as the proportion of permuted
@@ -218,7 +228,7 @@ make_rose_plots <- function(angles, perm_results, dataset_label, outfile) {
       make_gg_rose(angles[["Control"]][[tp]],
                    title    = paste("Control -", tp),
                    subtitle = paste0("n = ", n_cilia, ",  rho = ", rho_val,
-                                     ",  Rayleigh p = ", format.pval(rayleigh_p, digits = 2)),
+                                     ",  Rayleigh test ", fmt_p(rayleigh_p)),
                    col_fill   = "#ddeeff",
                    col_border = "steelblue")
     ))
@@ -231,8 +241,8 @@ make_rose_plots <- function(angles, perm_results, dataset_label, outfile) {
     rayleigh_p <- round(rayleigh.test(angles[["ES"]][[tp]])$p.value, 3)
     pr         <- perm_results[perm_results$timepoint == tp, ]
     sub <- paste0("n = ", n_cilia, ",  rho = ", rho_val,
-                  ",  Rayleigh p = ", format.pval(rayleigh_p, digits = 2))
-    cap <- if (!is.na(pr$U2)) paste0("Watson U2 p (Bonferroni) = ", format.pval(pr$p_bonferroni, digits = 2)) else ""
+                  ",  Rayleigh test ", fmt_p(rayleigh_p))
+    cap <- if (!is.na(pr$U2)) paste0("Watson U2 (Bonferroni) ", fmt_p(pr$p_bonferroni)) else ""
     plot_list <- c(plot_list, list(
       make_gg_rose(angles[["ES"]][[tp]],
                    title    = paste("ES -", tp),
@@ -248,7 +258,7 @@ make_rose_plots <- function(angles, perm_results, dataset_label, outfile) {
                top = paste("Primary cilia orientation -", dataset_label))
   dev.off()
 
-  png_file <- sub("\.pdf$", ".png", outfile)
+  png_file <- sub("[.]pdf$", ".png", outfile)
   png(png_file, width = 14, height = 7, units = "in", res = 300, bg = "transparent")
   grid.arrange(grobs = plot_list, nrow = 2,
                top = paste("Primary cilia orientation -", dataset_label))
@@ -275,7 +285,7 @@ make_combined_plots <- function(all_angles, all_perm, all_labels, outfile) {
         make_gg_rose(angles[["Control"]][[tp]],
                      title    = paste0("Control - ", tp, " [", label, "]"),
                      subtitle = paste0("n = ", n_cilia, ",  rho = ", rho_val,
-                                       ",  Rayleigh p = ", format.pval(rayleigh_p, digits = 2)),
+                                       ",  Rayleigh test ", fmt_p(rayleigh_p)),
                      col_fill   = "#ddeeff",
                      col_border = "steelblue")
       ))
@@ -287,8 +297,8 @@ make_combined_plots <- function(all_angles, all_perm, all_labels, outfile) {
       rayleigh_p <- round(rayleigh.test(angles[["ES"]][[tp]])$p.value, 3)
       pr         <- perm_results[perm_results$timepoint == tp, ]
       sub <- paste0("n = ", n_cilia, ",  rho = ", rho_val,
-                    ",  Rayleigh p = ", format.pval(rayleigh_p, digits = 2))
-      cap <- if (!is.na(pr$U2)) paste0("Watson U2 p (Bonferroni) = ", format.pval(pr$p_bonferroni, digits = 2)) else ""
+                    ",  Rayleigh test ", fmt_p(rayleigh_p))
+      cap <- if (!is.na(pr$U2)) paste0("Watson U2 (Bonferroni) ", fmt_p(pr$p_bonferroni)) else ""
       all_plots <- c(all_plots, list(
         make_gg_rose(angles[["ES"]][[tp]],
                      title    = paste0("ES - ", tp, " [", label, "]"),
@@ -306,7 +316,7 @@ make_combined_plots <- function(all_angles, all_perm, all_labels, outfile) {
                top = "Primary cilia orientation - Control vs electrical stimulation")
   dev.off()
 
-  png_file <- sub("\.pdf$", ".png", outfile)
+  png_file <- sub("[.]pdf$", ".png", outfile)
   png(png_file, width = 14, height = 3.5 * length(all_angles), units = "in", res = 300, bg = "transparent")
   grid.arrange(grobs = all_plots, nrow = n_rows,
                top = "Primary cilia orientation - Control vs electrical stimulation")
